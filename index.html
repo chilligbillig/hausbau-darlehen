@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Darlehens-App Hausbau</title>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js"></script>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
     input, select, button { margin: 5px; padding: 5px; width: 100%; box-sizing: border-box; }
@@ -44,6 +46,17 @@
   </div>
 
   <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSy...xyz",
+      authDomain: "hausbau-app.firebaseapp.com",
+      projectId: "hausbau-app",
+      storageBucket: "hausbau-app.appspot.com",
+      messagingSenderId: "...",
+      appId: "1:...:web:..."
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
     let ek_counter = 0;
     let darlehen_counter = 0;
 
@@ -70,31 +83,31 @@
       return parseFloat(str.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
     }
 
-    function addZusatzEK() {
+    function addZusatzEK(name = '', betrag = '') {
       const div = document.createElement('div');
       div.innerHTML = `
-        <input type="text" placeholder="Name Zusatz-EK" class="ek_name">
-        <input type="text" placeholder="Betrag" class="currency zusatz_ek">`;
+        <input type="text" placeholder="Name Zusatz-EK" class="ek_name" value="${name}">
+        <input type="text" placeholder="Betrag" class="currency zusatz_ek" value="${betrag}">`;
       document.getElementById('zusatz_ek').appendChild(div);
       ek_counter++;
     }
 
-    function addDarlehen() {
+    function addDarlehen(data = {}) {
       const div = document.createElement('div');
       div.classList.add('darlehen-entry');
       div.innerHTML = `
         <button class="remove-btn" onclick="this.parentElement.remove()">X</button>
-        <input type="text" placeholder="Name Darlehen ${darlehen_counter + 1}" class="dl_name">
-        <input type="text" placeholder="Max. Betrag" class="currency dl_betrag">
-        <input type="text" placeholder="Zinssatz %" class="dl_zins">
-        <input type="text" placeholder="Laufzeit in Jahren" class="dl_laufzeit">
-        <input type="number" placeholder="Reihenfolge" class="dl_reihenfolge">
+        <input type="text" placeholder="Name Darlehen" class="dl_name" value="${data.name || ''}">
+        <input type="text" placeholder="Max. Betrag" class="currency dl_betrag" value="${data.betrag || ''}">
+        <input type="text" placeholder="Zinssatz %" class="dl_zins" value="${data.zins || ''}">
+        <input type="text" placeholder="Laufzeit in Jahren" class="dl_laufzeit" value="${data.laufzeit || ''}">
+        <input type="number" placeholder="Reihenfolge" class="dl_reihenfolge" value="${data.reihenfolge || ''}">
       `;
       document.getElementById('darlehen_container').appendChild(div);
       darlehen_counter++;
     }
 
-    function berechne() {
+    async function berechne() {
       const kaufpreis = parseCurrency(document.getElementById('kaufpreis').value);
       const ek_benjamin = parseCurrency(document.getElementById('ek_benjamin').value);
       const ek_sophia = parseCurrency(document.getElementById('ek_sophia').value);
@@ -142,6 +155,12 @@
       `;
 
       document.getElementById('ergebnis').innerHTML = html;
+
+      await db.collection("daten").doc("default").set({
+        kaufpreis, ek_benjamin, ek_sophia,
+        zusatz_eks: [...document.querySelectorAll('.zusatz_ek')].map(e => e.value),
+        darlehen_raw: darlehen
+      });
     }
 
     function berechneRate(betrag, zinssatz, laufzeit_jahre) {
@@ -150,6 +169,29 @@
       const n = laufzeit_jahre * 12;
       return betrag * r / (1 - Math.pow(1 + r, -n));
     }
+
+    async function ladeDaten() {
+      const doc = await db.collection("daten").doc("default").get();
+      if (!doc.exists) return;
+      const data = doc.data();
+      document.getElementById('kaufpreis').value = data.kaufpreis || '';
+      document.getElementById('ek_benjamin').value = data.ek_benjamin || '';
+      document.getElementById('ek_sophia').value = data.ek_sophia || '';
+      if (data.zusatz_eks) {
+        data.zusatz_eks.forEach(betrag => addZusatzEK('', betrag));
+      }
+      if (data.darlehen_raw) {
+        data.darlehen_raw.forEach(d => addDarlehen({
+          name: d.name,
+          betrag: d.betrag,
+          zins: d.zins * 100,
+          laufzeit: d.laufzeit,
+          reihenfolge: d.reihenfolge
+        }));
+      }
+    }
+
+    window.onload = ladeDaten;
   </script>
 </body>
 </html>
