@@ -6,6 +6,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
   <style>
+    /* CSS wie bisher */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       max-width: 900px;
@@ -100,14 +101,14 @@
 
   <div class="section">
     <h3>Hauspreis</h3>
-    <input id="kaufpreis" type="text" inputmode="decimal" placeholder="Hauspreis" />
+    <input id="kaufpreis" type="text" inputmode="decimal" placeholder="Hauspreis" oninput="speichereDaten()" />
   </div>
 
   <div class="section">
     <h3>Eigenkapital</h3>
     <div id="ekListe">
-      <input placeholder="Name (z. B. Benjamin)" />
-      <input placeholder="Betrag" />
+      <input placeholder="Name (z. B. Benjamin)" oninput="speichereDaten()" />
+      <input placeholder="Betrag" oninput="speichereDaten()" />
     </div>
     <button onclick="addEK()">+ Weiteres Eigenkapital</button>
   </div>
@@ -135,27 +136,75 @@
       return parseFloat(str.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
     }
 
-    const kaufpreisInput = document.getElementById("kaufpreis");
-    kaufpreisInput.addEventListener('input', () => {
-      const raw = kaufpreisInput.value.replace(/[^\d]/g, '');
-      kaufpreisInput.value = parseFloat(raw).toLocaleString('de-DE');
+    document.addEventListener('DOMContentLoaded', () => {
+      db.collection("nutzerdaten").doc("benjamin_sophia").get().then(doc => {
+        if (!doc.exists) return;
+        const daten = doc.data();
+        document.getElementById("kaufpreis").value = daten.kaufpreis || "";
+
+        daten.eigenkapital?.forEach(e => {
+          addEK();
+          const inputs = document.querySelectorAll("#ekListe input");
+          inputs[inputs.length - 2].value = e.name;
+          inputs[inputs.length - 1].value = e.betrag;
+        });
+
+        daten.darlehen?.forEach(d => {
+          addDarlehen();
+          const el = document.querySelectorAll(".darlehen-entry");
+          const letzte = el[el.length - 1].children;
+          letzte[1].value = d.bezeichnung;
+          letzte[2].value = d.betrag;
+          letzte[3].value = d.zinssatz;
+          letzte[4].value = d.laufzeit;
+          letzte[5].value = d.reihenfolge;
+        });
+      });
     });
+
+    function speichereDaten() {
+      const ekListe = [];
+      const ekInputs = document.querySelectorAll("#ekListe input");
+      for (let i = 0; i < ekInputs.length; i += 2) {
+        ekListe.push({
+          name: ekInputs[i].value,
+          betrag: ekInputs[i + 1].value
+        });
+      }
+
+      const darlehenListe = [];
+      document.querySelectorAll(".darlehen-entry").forEach(d => {
+        darlehenListe.push({
+          bezeichnung: d.children[1].value,
+          betrag: d.children[2].value,
+          zinssatz: d.children[3].value,
+          laufzeit: d.children[4].value,
+          reihenfolge: d.children[5].value
+        });
+      });
+
+      db.collection("nutzerdaten").doc("benjamin_sophia").set({
+        kaufpreis: document.getElementById("kaufpreis").value,
+        eigenkapital: ekListe,
+        darlehen: darlehenListe
+      });
+    }
 
     function addEK() {
       const container = document.getElementById("ekListe");
-      container.insertAdjacentHTML('beforeend', '<input placeholder="Name Zusatz-EK" /><input placeholder="Betrag" />');
+      container.insertAdjacentHTML('beforeend', '<input placeholder="Name Zusatz-EK" oninput="speichereDaten()" /><input placeholder="Betrag" oninput="speichereDaten()" />');
     }
 
     function addDarlehen() {
       const container = document.getElementById("darlehenListe");
       container.insertAdjacentHTML('beforeend', `
         <div class="darlehen-entry">
-          <button class="remove-btn" onclick="this.parentElement.remove()">X</button>
-          <input placeholder="Bezeichnung (z. B. Landesdarlehen)" />
-          <input placeholder="Betrag" />
-          <input placeholder="Zinssatz (%)" />
-          <input placeholder="Laufzeit (Jahre)" />
-          <input placeholder="Reihenfolge (1 = zuerst verwenden)" />
+          <button class="remove-btn" onclick="this.parentElement.remove(); speichereDaten();">X</button>
+          <input placeholder="Bezeichnung (z. B. Landesdarlehen)" oninput="speichereDaten()" />
+          <input placeholder="Betrag" oninput="speichereDaten()" />
+          <input placeholder="Zinssatz (%)" oninput="speichereDaten()" />
+          <input placeholder="Laufzeit (Jahre)" oninput="speichereDaten()" />
+          <input placeholder="Reihenfolge (1 = zuerst verwenden)" oninput="speichereDaten()" />
         </div>
       `);
     }
