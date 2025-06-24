@@ -2,15 +2,67 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Darlehens-App Hausbau</title>
+  <title>Hausbau-Übersicht Benjamin & Sophia 🏡</title>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
   <style>
-    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
-    input, select, button { margin: 5px; padding: 5px; width: 100%; box-sizing: border-box; }
-    .section { border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
-    .section h3 { margin-top: 0; }
-    .darlehen-entry { position: relative; border-bottom: 1px solid #ddd; margin-bottom: 10px; padding: 15px 10px 10px 10px; background: #f9f9f9; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 30px;
+      background-color: #f1f4f1;
+      color: #1b3c2f;
+    }
+    h1 {
+      background-color: #2d5942;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    h3, h4 {
+      color: #2d5942;
+    }
+    input, select, button {
+      margin: 5px 0;
+      padding: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #2d5942;
+      color: white;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #244a38;
+    }
+    .section {
+      border: 1px solid #ccdacc;
+      padding: 20px;
+      margin-top: 20px;
+      border-radius: 8px;
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    .section h3 {
+      margin-top: 0;
+    }
+    .darlehen-entry {
+      position: relative;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 10px;
+      padding: 15px 10px 10px 10px;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
     .remove-btn {
       position: absolute;
       top: 8px;
@@ -23,11 +75,22 @@
       font-size: 14px;
       cursor: pointer;
     }
-    .currency { text-align: right; }
+    .currency {
+      text-align: right;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 5px;
+    }
+    #ergebnis p, #ergebnis li {
+      font-size: 15px;
+    }
   </style>
 </head>
 <body>
-  <h1>Hausbau Darlehensübersicht</h1>
+  <h1>Hausbau-Übersicht Benjamin & Sophia 🏡</h1>
 
   <div class="section">
     <h3>Berechnung</h3>
@@ -37,23 +100,22 @@
 
   <div class="section">
     <h3>Hauspreis</h3>
-    <input type="text" id="kaufpreis" placeholder="Hauspreis in EUR" class="currency">
+    <input id="kaufpreis" type="text" inputmode="decimal" placeholder="Hauspreis" />
   </div>
 
   <div class="section">
     <h3>Eigenkapital</h3>
-    <input type="text" placeholder="Name (z. B. Benjamin)" class="ek_name">
-    <input type="text" id="ek_benjamin" placeholder="Betrag" class="currency">
-    <input type="text" placeholder="Name (z. B. Sophia)" class="ek_name">
-    <input type="text" id="ek_sophia" placeholder="Betrag" class="currency">
-    <div id="zusatz_ek"></div>
-    <button onclick="addZusatzEK()">+ Weiteres Eigenkapital</button>
+    <div id="ekListe">
+      <input placeholder="Name (z. B. Benjamin)" />
+      <input placeholder="Betrag" />
+    </div>
+    <button onclick="addEK()">+ Weiteres Eigenkapital</button>
   </div>
 
   <div class="section">
     <h3>Darlehen</h3>
-    <div id="darlehen_container"></div>
-    <button onclick="addDarlehen()">+ Darlehen hinzufügen</button>
+    <div id="darlehenListe"></div>
+    <button onclick="addDarlehen()">+ Weiteres Darlehen</button>
   </div>
 
   <script>
@@ -66,94 +128,61 @@
       appId: "1:855957742426:web:1e08c6d7d047e291164963",
       measurementId: "G-EVP5W5MFTW"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    let ek_counter = 0;
-    let darlehen_counter = 0;
-
-    function formatCurrencyInput(input) {
-      input.value = parseFloat(input.value.replace(/[^\\d,.-]/g, '').replace(',', '.'))
-        .toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-    }
-
-    document.addEventListener('input', function (e) {
-      if (e.target.classList.contains('currency')) {
-        e.target.value = e.target.value.replace(/[^\\d,.-]/g, '').replace(',', '.');
-      }
-    });
-
-    document.addEventListener('blur', function (e) {
-      if (e.target.classList.contains('currency')) {
-        try {
-          formatCurrencyInput(e.target);
-        } catch {}
-      }
-    }, true);
-
     function parseCurrency(str) {
-      return parseFloat(str.replace(/\\./g, '').replace(',', '.').replace(/[^\\d.-]/g, '')) || 0;
+      return parseFloat(str.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
     }
 
-    function addZusatzEK(name = '', betrag = '') {
-      const div = document.createElement('div');
-      div.innerHTML = `
-        <input type="text" placeholder="Name Zusatz-EK" class="ek_name" value="${name}">
-        <input type="text" placeholder="Betrag" class="currency zusatz_ek" value="${betrag}">`;
-      document.getElementById('zusatz_ek').appendChild(div);
-      ek_counter++;
+    function addEK() {
+      const container = document.getElementById("ekListe");
+      container.insertAdjacentHTML('beforeend', '<input placeholder="Name Zusatz-EK" /><input placeholder="Betrag" />');
     }
 
-    function addDarlehen(data = {}) {
-      const div = document.createElement('div');
-      div.classList.add('darlehen-entry');
-      div.innerHTML = `
-        <button class="remove-btn" onclick="this.parentElement.remove()">X</button>
-        <input type="text" placeholder="Name Darlehen" class="dl_name" value="${data.name || ''}">
-        <input type="text" placeholder="Max. Betrag" class="currency dl_betrag" value="${data.betrag || ''}">
-        <input type="text" placeholder="Zinssatz %" class="dl_zins" value="${data.zins || ''}">
-        <input type="text" placeholder="Laufzeit in Jahren" class="dl_laufzeit" value="${data.laufzeit || ''}">
-        <input type="number" placeholder="Reihenfolge" class="dl_reihenfolge" value="${data.reihenfolge || ''}">
-      `;
-      document.getElementById('darlehen_container').appendChild(div);
-      darlehen_counter++;
+    function addDarlehen() {
+      const container = document.getElementById("darlehenListe");
+      container.insertAdjacentHTML('beforeend', `
+        <div class="darlehen-entry">
+          <button class="remove-btn" onclick="this.parentElement.remove()">X</button>
+          <input placeholder="Bezeichnung (z. B. Landesdarlehen)" />
+          <input placeholder="Betrag" />
+          <input placeholder="Zinssatz (%)" />
+          <input placeholder="Laufzeit (Jahre)" />
+          <input placeholder="Eff. Jahreszins (%)" />
+        </div>
+      `);
     }
 
-    async function berechne() {
-      const kaufpreis = parseCurrency(document.getElementById('kaufpreis').value);
-      const ek_benjamin = parseCurrency(document.getElementById('ek_benjamin').value);
-      const ek_sophia = parseCurrency(document.getElementById('ek_sophia').value);
-      const zusatz_eks = [...document.querySelectorAll('.zusatz_ek')].map(e => parseCurrency(e.value));
+    function berechne() {
+      const kaufpreis = parseCurrency(document.getElementById("kaufpreis").value);
+      const ekInputs = document.querySelectorAll("#ekListe input");
+      let gesamt_ek = 0;
+      for (let i = 1; i < ekInputs.length; i += 2) {
+        gesamt_ek += parseCurrency(ekInputs[i].value);
+      }
 
-      const gesamt_ek = ek_benjamin + ek_sophia + zusatz_eks.reduce((a, b) => a + b, 0);
       const finanzbedarf = kaufpreis - gesamt_ek;
-
-      let darlehen = [...document.querySelectorAll('.darlehen-entry')].map(div => {
-        return {
-          name: div.querySelector('.dl_name').value,
-          betrag: parseCurrency(div.querySelector('.dl_betrag').value),
-          zins: parseFloat(div.querySelector('.dl_zins').value) / 100 || 0,
-          laufzeit: parseFloat(div.querySelector('.dl_laufzeit').value) || 0,
-          reihenfolge: parseInt(div.querySelector('.dl_reihenfolge').value) || 999
-        };
-      });
-
-      darlehen = darlehen.sort((a, b) => a.reihenfolge - b.reihenfolge);
-
-      let aufgenommene_darlehen = [];
+      const darlehenNodes = document.querySelectorAll(".darlehen-entry");
+      const aufgenommene_darlehen = [];
+      let gesamt_rate = 0;
       let restbedarf = finanzbedarf;
 
-      for (let d of darlehen) {
-        if (restbedarf <= 0) break;
-        let betrag = Math.min(d.betrag, restbedarf);
-        d.realbetrag = betrag;
-        d.rate = berechneRate(betrag, d.zins, d.laufzeit);
-        restbedarf -= betrag;
-        aufgenommene_darlehen.push(d);
-      }
+      darlehenNodes.forEach(d => {
+        const name = d.children[1].value;
+        const betrag = parseCurrency(d.children[2].value);
+        const zinssatz = parseFloat(d.children[3].value) / 100;
+        const laufzeit = parseFloat(d.children[4].value);
 
-      let gesamt_rate = aufgenommene_darlehen.reduce((sum, d) => sum + d.rate, 0);
+        if (restbedarf <= 0 || !betrag || !laufzeit) return;
+
+        const realbetrag = Math.min(betrag, restbedarf);
+        restbedarf -= realbetrag;
+        const rate = zinssatz > 0 ? (realbetrag * zinssatz) / 12 : realbetrag / (laufzeit * 12);
+
+        aufgenommene_darlehen.push({ name, realbetrag, rate });
+        gesamt_rate += rate;
+      });
 
       let html = `
         <p>Hauspreis: ${kaufpreis.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</p>
@@ -167,54 +196,8 @@
         <h3>Gesamt-Monatsrate: ${gesamt_rate.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</h3>
       `;
 
-      document.getElementById('ergebnis').innerHTML = html;
-
-      try {
-        await db.collection("daten").doc("default").set({
-          kaufpreis, ek_benjamin, ek_sophia,
-          zusatz_eks: [...document.querySelectorAll('.zusatz_ek')].map(e => e.value),
-          darlehen_raw: darlehen
-        });
-        console.log("✅ Daten gespeichert");
-      } catch (err) {
-        console.error("❌ Fehler beim Speichern in Firestore:", err);
-      }
+      document.getElementById("ergebnis").innerHTML = html;
     }
-
-    function berechneRate(betrag, zinssatz, laufzeit_jahre) {
-      if (zinssatz === 0) return betrag / (laufzeit_jahre * 12);
-      const r = zinssatz / 12;
-      const n = laufzeit_jahre * 12;
-      return betrag * r / (1 - Math.pow(1 + r, -n));
-    }
-
-    async function ladeDaten() {
-      try {
-        const doc = await db.collection("daten").doc("default").get();
-        if (!doc.exists) return;
-        const data = doc.data();
-        document.getElementById('kaufpreis').value = data.kaufpreis || '';
-        document.getElementById('ek_benjamin').value = data.ek_benjamin || '';
-        document.getElementById('ek_sophia').value = data.ek_sophia || '';
-        if (data.zusatz_eks) {
-          data.zusatz_eks.forEach(betrag => addZusatzEK('', betrag));
-        }
-        if (data.darlehen_raw) {
-          data.darlehen_raw.forEach(d => addDarlehen({
-            name: d.name,
-            betrag: d.betrag,
-            zins: d.zins * 100,
-            laufzeit: d.laufzeit,
-            reihenfolge: d.reihenfolge
-          }));
-        }
-        console.log("✅ Daten geladen");
-      } catch (err) {
-        console.error("❌ Fehler beim Laden aus Firestore:", err);
-      }
-    }
-
-    window.onload = ladeDaten;
   </script>
 </body>
 </html>
