@@ -112,11 +112,29 @@
   </div>
 
   <script>
+    // Firebase-Konfiguration
+    const firebaseConfig = {
+      apiKey: "AIzaSyA3un0OG6385dsHieylDUwDr0IjWOxYlS8",
+      authDomain: "hausbau-app-47a44.firebaseapp.com",
+      projectId: "hausbau-app-47a44",
+      storageBucket: "hausbau-app-47a44.appspot.com",
+      messagingSenderId: "855957742426",
+      appId: "1:855957742426:web:1e08c6d7d047e291164963",
+      measurementId: "G-EVP5W5MFTW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Währungsformatierung
     function formatCurrency(el) {
       let val = parseFloat(el.value.replace(/[^\d,.-]/g, '').replace(',', '.'));
       if (!isNaN(val)) {
         el.value = val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
+    }
+
+    function parseCurrency(str) {
+      return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
     }
 
     function addEK() {
@@ -137,6 +155,100 @@
         </div>
       `);
     }
+
+    function speichereDaten() {
+      const kaufpreis = parseCurrency(document.getElementById("kaufpreis").value);
+      const ekContainer = document.getElementById("ekListe");
+      const eigenkapital = [];
+      const ekInputs = ekContainer.querySelectorAll("input");
+      for (let i = 0; i < ekInputs.length; i += 2) {
+        eigenkapital.push({ name: ekInputs[i].value, betrag: parseCurrency(ekInputs[i + 1].value) });
+      }
+      const darlehenContainer = document.getElementById("darlehenListe");
+      const darlehenInputs = darlehenContainer.querySelectorAll(".darlehen-entry");
+      const darlehen = [];
+      darlehenInputs.forEach(entry => {
+        const inputs = entry.querySelectorAll("input");
+        darlehen.push({
+          bezeichnung: inputs[0].value,
+          betrag: parseCurrency(inputs[1].value),
+          zinssatz: parseFloat(inputs[2].value),
+          laufzeit: parseInt(inputs[3].value),
+          reihenfolge: parseInt(inputs[4].value)
+        });
+      });
+      db.collection("nutzerdaten").doc("benjamin_sophia").set({ kaufpreis, eigenkapital, darlehen });
+    }
+
+    async function ladeDaten() {
+      const doc = await db.collection("nutzerdaten").doc("benjamin_sophia").get();
+      if (doc.exists) {
+        const daten = doc.data();
+        document.getElementById("kaufpreis").value = daten.kaufpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 });
+        const ekContainer = document.getElementById("ekListe");
+        ekContainer.innerHTML = '';
+        daten.eigenkapital.forEach(ek => {
+          ekContainer.insertAdjacentHTML('beforeend', `<input value="${ek.name}" oninput="speichereDaten()" /><input type="number" value="${ek.betrag}" oninput="formatCurrency(this); speichereDaten()" />`);
+        });
+        const darlehenContainer = document.getElementById("darlehenListe");
+        darlehenContainer.innerHTML = '';
+        daten.darlehen.forEach(d => {
+          darlehenContainer.insertAdjacentHTML('beforeend', `
+            <div class="darlehen-entry">
+              <button class="remove-btn" onclick="this.parentElement.remove(); speichereDaten();">Entfernen</button>
+              <input value="${d.bezeichnung}" oninput="speichereDaten()" />
+              <input type="number" value="${d.betrag}" oninput="formatCurrency(this); speichereDaten()" />
+              <input type="number" value="${d.zinssatz}" oninput="speichereDaten()" />
+              <input type="number" value="${d.laufzeit}" oninput="speichereDaten()" />
+              <input type="number" value="${d.reihenfolge}" oninput="speichereDaten()" />
+            </div>
+          `);
+        });
+      }
+    }
+
+    function berechne() {
+      const kaufpreis = parseCurrency(document.getElementById("kaufpreis").value);
+      const ekInputs = document.getElementById("ekListe").querySelectorAll("input");
+      let gesamtEK = 0;
+      for (let i = 1; i < ekInputs.length; i += 2) {
+        gesamtEK += parseCurrency(ekInputs[i].value);
+      }
+      const darlehenInputs = document.getElementById("darlehenListe").querySelectorAll(".darlehen-entry");
+      const darlehen = [];
+      darlehenInputs.forEach(entry => {
+        const inputs = entry.querySelectorAll("input");
+        darlehen.push({
+          bezeichnung: inputs[0].value,
+          betrag: parseCurrency(inputs[1].value),
+          zinssatz: parseFloat(inputs[2].value),
+          laufzeit: parseInt(inputs[3].value),
+          reihenfolge: parseInt(inputs[4].value)
+        });
+      });
+      darlehen.sort((a, b) => a.reihenfolge - b.reihenfolge);
+      const fehlbetrag = kaufpreis - gesamtEK;
+      let verbleibend = fehlbetrag;
+      let rateGesamt = 0;
+      let info = "<strong>Monatliche Raten:</strong><br>";
+      for (let d of darlehen) {
+        const betrag = Math.min(verbleibend, d.betrag);
+        const zins = d.zinssatz / 100 / 12;
+        const n = d.laufzeit * 12;
+        const rate = zins === 0 ? betrag / n : (betrag * zins) / (1 - Math.pow(1 + zins, -n));
+        rateGesamt += rate;
+        verbleibend -= betrag;
+        info += `${d.bezeichnung}: ${rate.toFixed(2).replace('.', ',')} €<br>`;
+        if (verbleibend <= 0) break;
+      }
+      document.getElementById("ergebnis").innerHTML = `
+        ${info}
+        <strong>Gesamt-Rate: ${rateGesamt.toFixed(2).replace('.', ',')} €</strong><br>
+        <strong>Verbleibender Bedarf: ${verbleibend > 0 ? verbleibend.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €' : 'gedeckt'}</strong>
+      `;
+    }
+
+    ladeDaten();
   </script>
 </body>
 </html>
