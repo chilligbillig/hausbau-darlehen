@@ -135,6 +135,22 @@
       return parseFloat(str.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
     }
 
+    function formatCurrencyInput(input) {
+      let value = input.value.replace(/[^\d]/g, '');
+      if (!value) {
+        input.value = '';
+        return;
+      }
+      value = parseFloat(value).toLocaleString('de-DE');
+      input.value = value;
+    }
+
+    const kaufpreisInput = document.getElementById("kaufpreis");
+    kaufpreisInput.addEventListener('input', () => {
+      const raw = kaufpreisInput.value.replace(/[^\d]/g, '');
+      kaufpreisInput.value = parseFloat(raw).toLocaleString('de-DE');
+    });
+
     function addEK() {
       const container = document.getElementById("ekListe");
       container.insertAdjacentHTML('beforeend', '<input placeholder="Name Zusatz-EK" /><input placeholder="Betrag" />');
