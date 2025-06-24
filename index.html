@@ -5,23 +5,34 @@
   <title>Darlehens-App Hausbau</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
-    input, select, button { margin: 5px; padding: 5px; width: 100%; }
+    input, select, button { margin: 5px; padding: 5px; width: 100%; box-sizing: border-box; }
     .section { border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
     .section h3 { margin-top: 0; }
+    .darlehen-entry { position: relative; border-bottom: 1px solid #ddd; margin-bottom: 10px; padding-bottom: 10px; }
+    .remove-btn { position: absolute; top: 0; right: 0; background: #c00; color: #fff; border: none; padding: 5px; cursor: pointer; }
+    .currency { text-align: right; }
   </style>
 </head>
 <body>
   <h1>Hausbau Darlehensübersicht</h1>
 
   <div class="section">
+    <h3>Berechnung</h3>
+    <button onclick="berechne()">Berechnen</button>
+    <div id="ergebnis"></div>
+  </div>
+
+  <div class="section">
     <h3>Hauspreis</h3>
-    <input type="number" id="kaufpreis" placeholder="Hauspreis in EUR">
+    <input type="text" id="kaufpreis" placeholder="Hauspreis in EUR" class="currency">
   </div>
 
   <div class="section">
     <h3>Eigenkapital</h3>
-    <input type="number" id="ek_benjamin" placeholder="Eigenkapital Benjamin">
-    <input type="number" id="ek_sophia" placeholder="Eigenkapital Sophia">
+    <input type="text" placeholder="Name (z. B. Benjamin)" class="ek_name">
+    <input type="text" id="ek_benjamin" placeholder="Betrag" class="currency">
+    <input type="text" placeholder="Name (z. B. Sophia)" class="ek_name">
+    <input type="text" id="ek_sophia" placeholder="Betrag" class="currency">
     <div id="zusatz_ek"></div>
     <button onclick="addZusatzEK()">+ Weiteres Eigenkapital</button>
   </div>
@@ -32,51 +43,70 @@
     <button onclick="addDarlehen()">+ Darlehen hinzufügen</button>
   </div>
 
-  <div class="section">
-    <h3>Berechnung</h3>
-    <button onclick="berechne()">Berechnen</button>
-    <div id="ergebnis"></div>
-  </div>
-
   <script>
     let ek_counter = 0;
     let darlehen_counter = 0;
 
+    function formatCurrencyInput(input) {
+      input.value = parseFloat(input.value.replace(/[^\d,.-]/g, '').replace(',', '.'))
+        .toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    }
+
+    document.addEventListener('input', function (e) {
+      if (e.target.classList.contains('currency')) {
+        e.target.value = e.target.value.replace(/[^\d,.-]/g, '').replace(',', '.');
+      }
+    });
+
+    document.addEventListener('blur', function (e) {
+      if (e.target.classList.contains('currency')) {
+        try {
+          formatCurrencyInput(e.target);
+        } catch {}
+      }
+    }, true);
+
+    function parseCurrency(str) {
+      return parseFloat(str.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+    }
+
     function addZusatzEK() {
       const div = document.createElement('div');
-      div.innerHTML = `<input type="number" placeholder="Zusatz-EK ${ek_counter + 1}" class="zusatz_ek">`;
+      div.innerHTML = `
+        <input type="text" placeholder="Name Zusatz-EK" class="ek_name">
+        <input type="text" placeholder="Betrag" class="currency zusatz_ek">`;
       document.getElementById('zusatz_ek').appendChild(div);
       ek_counter++;
     }
 
     function addDarlehen() {
       const div = document.createElement('div');
-      div.classList.add('darlehen');
+      div.classList.add('darlehen-entry');
       div.innerHTML = `
+        <button class="remove-btn" onclick="this.parentElement.remove()">X</button>
         <input type="text" placeholder="Name Darlehen ${darlehen_counter + 1}" class="dl_name">
-        <input type="number" placeholder="Max. Betrag" class="dl_betrag">
-        <input type="number" placeholder="Zinssatz %" class="dl_zins">
-        <input type="number" placeholder="Laufzeit in Jahren" class="dl_laufzeit">
+        <input type="text" placeholder="Max. Betrag" class="currency dl_betrag">
+        <input type="text" placeholder="Zinssatz %" class="dl_zins">
+        <input type="text" placeholder="Laufzeit in Jahren" class="dl_laufzeit">
         <input type="number" placeholder="Reihenfolge" class="dl_reihenfolge">
-        <hr>
       `;
       document.getElementById('darlehen_container').appendChild(div);
       darlehen_counter++;
     }
 
     function berechne() {
-      const kaufpreis = parseFloat(document.getElementById('kaufpreis').value) || 0;
-      const ek_benjamin = parseFloat(document.getElementById('ek_benjamin').value) || 0;
-      const ek_sophia = parseFloat(document.getElementById('ek_sophia').value) || 0;
-      const zusatz_eks = [...document.querySelectorAll('.zusatz_ek')].map(e => parseFloat(e.value) || 0);
+      const kaufpreis = parseCurrency(document.getElementById('kaufpreis').value);
+      const ek_benjamin = parseCurrency(document.getElementById('ek_benjamin').value);
+      const ek_sophia = parseCurrency(document.getElementById('ek_sophia').value);
+      const zusatz_eks = [...document.querySelectorAll('.zusatz_ek')].map(e => parseCurrency(e.value));
 
       const gesamt_ek = ek_benjamin + ek_sophia + zusatz_eks.reduce((a, b) => a + b, 0);
       const finanzbedarf = kaufpreis - gesamt_ek;
 
-      let darlehen = [...document.querySelectorAll('.darlehen')].map(div => {
+      let darlehen = [...document.querySelectorAll('.darlehen-entry')].map(div => {
         return {
           name: div.querySelector('.dl_name').value,
-          betrag: parseFloat(div.querySelector('.dl_betrag').value) || 0,
+          betrag: parseCurrency(div.querySelector('.dl_betrag').value),
           zins: parseFloat(div.querySelector('.dl_zins').value) / 100 || 0,
           laufzeit: parseFloat(div.querySelector('.dl_laufzeit').value) || 0,
           reihenfolge: parseInt(div.querySelector('.dl_reihenfolge').value) || 999
@@ -86,27 +116,27 @@
       darlehen = darlehen.sort((a, b) => a.reihenfolge - b.reihenfolge);
 
       let aufgenommene_darlehen = [];
-      let verbleibend = finanzbedarf;
+      let restbedarf = finanzbedarf;
 
       for (let d of darlehen) {
-        if (verbleibend <= 0) break;
-        let betrag = Math.min(d.betrag, verbleibend);
+        if (restbedarf <= 0) break;
+        let betrag = Math.min(d.betrag, restbedarf);
         d.realbetrag = betrag;
         d.rate = berechneRate(betrag, d.zins, d.laufzeit);
-        verbleibend -= betrag;
+        restbedarf -= betrag;
         aufgenommene_darlehen.push(d);
       }
 
       let gesamt_rate = aufgenommene_darlehen.reduce((sum, d) => sum + d.rate, 0);
 
       let html = `
-        <p>Hauspreis: €${kaufpreis.toLocaleString()}</p>
-        <p>Eigenkapital gesamt: €${gesamt_ek.toLocaleString()}</p>
-        <p>Finanzierungsbedarf: €${finanzbedarf.toLocaleString()}</p>
-        <p>Verbleibend: €${verbleibend.toLocaleString()}</p>
+        <p>Hauspreis: €${kaufpreis.toLocaleString('de-DE')}</p>
+        <p>Eigenkapital gesamt: €${gesamt_ek.toLocaleString('de-DE')}</p>
+        <p>Finanzierungsbedarf: €${finanzbedarf.toLocaleString('de-DE')}</p>
+        <p><strong>Noch ungedeckt (Restbedarf): €${restbedarf.toLocaleString('de-DE')}</strong></p>
         <h4>Verwendete Darlehen:</h4>
         <ul>
-          ${aufgenommene_darlehen.map(d => `<li>${d.name}: €${d.realbetrag.toLocaleString()} – Rate: €${d.rate.toFixed(2)}</li>`).join('')}
+          ${aufgenommene_darlehen.map(d => `<li>${d.name}: €${d.realbetrag.toLocaleString('de-DE')} – Rate: €${d.rate.toFixed(2)}</li>`).join('')}
         </ul>
         <h3>Gesamt-Monatsrate: €${gesamt_rate.toFixed(2)}</h3>
       `;
