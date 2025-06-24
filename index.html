@@ -82,7 +82,7 @@
     }, true);
 
     function parseCurrency(str) {
-      return parseFloat(str.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+      return parseFloat(str.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
     }
 
     function addZusatzEK(name = '', betrag = '') {
