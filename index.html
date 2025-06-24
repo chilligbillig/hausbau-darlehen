@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Darlehens-App Hausbau</title>
-  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
     input, select, button { margin: 5px; padding: 5px; width: 100%; box-sizing: border-box; }
@@ -47,14 +47,15 @@
 
   <script>
     const firebaseConfig = {
-  apiKey: "AIzaSyA3un0OG6385dsHieylDUwDr0IjWOxYlS8",
-  authDomain: "hausbau-app-47a44.firebaseapp.com",
-  projectId: "hausbau-app-47a44",
-  storageBucket: "hausbau-app-47a44.firebasestorage.app",
-  messagingSenderId: "855957742426",
-  appId: "1:855957742426:web:1e08c6d7d047e291164963",
-  measurementId: "G-EVP5W5MFTW"
-};
+      apiKey: "AIzaSyA3un0OG6385dsHieylDUwDr0IjWOxYlS8",
+      authDomain: "hausbau-app-47a44.firebaseapp.com",
+      projectId: "hausbau-app-47a44",
+      storageBucket: "hausbau-app-47a44.appspot.com",
+      messagingSenderId: "855957742426",
+      appId: "1:855957742426:web:1e08c6d7d047e291164963",
+      measurementId: "G-EVP5W5MFTW"
+    };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
@@ -157,11 +158,16 @@
 
       document.getElementById('ergebnis').innerHTML = html;
 
-      await db.collection("daten").doc("default").set({
-        kaufpreis, ek_benjamin, ek_sophia,
-        zusatz_eks: [...document.querySelectorAll('.zusatz_ek')].map(e => e.value),
-        darlehen_raw: darlehen
-      });
+      try {
+        await db.collection("daten").doc("default").set({
+          kaufpreis, ek_benjamin, ek_sophia,
+          zusatz_eks: [...document.querySelectorAll('.zusatz_ek')].map(e => e.value),
+          darlehen_raw: darlehen
+        });
+        console.log("✅ Daten gespeichert");
+      } catch (err) {
+        console.error("❌ Fehler beim Speichern in Firestore:", err);
+      }
     }
 
     function berechneRate(betrag, zinssatz, laufzeit_jahre) {
@@ -172,23 +178,28 @@
     }
 
     async function ladeDaten() {
-      const doc = await db.collection("daten").doc("default").get();
-      if (!doc.exists) return;
-      const data = doc.data();
-      document.getElementById('kaufpreis').value = data.kaufpreis || '';
-      document.getElementById('ek_benjamin').value = data.ek_benjamin || '';
-      document.getElementById('ek_sophia').value = data.ek_sophia || '';
-      if (data.zusatz_eks) {
-        data.zusatz_eks.forEach(betrag => addZusatzEK('', betrag));
-      }
-      if (data.darlehen_raw) {
-        data.darlehen_raw.forEach(d => addDarlehen({
-          name: d.name,
-          betrag: d.betrag,
-          zins: d.zins * 100,
-          laufzeit: d.laufzeit,
-          reihenfolge: d.reihenfolge
-        }));
+      try {
+        const doc = await db.collection("daten").doc("default").get();
+        if (!doc.exists) return;
+        const data = doc.data();
+        document.getElementById('kaufpreis').value = data.kaufpreis || '';
+        document.getElementById('ek_benjamin').value = data.ek_benjamin || '';
+        document.getElementById('ek_sophia').value = data.ek_sophia || '';
+        if (data.zusatz_eks) {
+          data.zusatz_eks.forEach(betrag => addZusatzEK('', betrag));
+        }
+        if (data.darlehen_raw) {
+          data.darlehen_raw.forEach(d => addDarlehen({
+            name: d.name,
+            betrag: d.betrag,
+            zins: d.zins * 100,
+            laufzeit: d.laufzeit,
+            reihenfolge: d.reihenfolge
+          }));
+        }
+        console.log("✅ Daten geladen");
+      } catch (err) {
+        console.error("❌ Fehler beim Laden aus Firestore:", err);
       }
     }
 
