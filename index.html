@@ -135,16 +135,6 @@
       return parseFloat(str.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
     }
 
-    function formatCurrencyInput(input) {
-      let value = input.value.replace(/[^\d]/g, '');
-      if (!value) {
-        input.value = '';
-        return;
-      }
-      value = parseFloat(value).toLocaleString('de-DE');
-      input.value = value;
-    }
-
     const kaufpreisInput = document.getElementById("kaufpreis");
     kaufpreisInput.addEventListener('input', () => {
       const raw = kaufpreisInput.value.replace(/[^\d]/g, '');
@@ -165,7 +155,7 @@
           <input placeholder="Betrag" />
           <input placeholder="Zinssatz (%)" />
           <input placeholder="Laufzeit (Jahre)" />
-          <input placeholder="Eff. Jahreszins (%)" />
+          <input placeholder="Reihenfolge (1 = zuerst verwenden)" />
         </div>
       `);
     }
@@ -179,22 +169,30 @@
       }
 
       const finanzbedarf = kaufpreis - gesamt_ek;
-      const darlehenNodes = document.querySelectorAll(".darlehen-entry");
+      const darlehenNodes = Array.from(document.querySelectorAll(".darlehen-entry"));
+      const darlehenMitReihenfolge = darlehenNodes.map(d => ({
+        element: d,
+        reihenfolge: parseInt(d.children[5].value) || 9999
+      })).sort((a, b) => a.reihenfolge - b.reihenfolge);
+
       const aufgenommene_darlehen = [];
       let gesamt_rate = 0;
       let restbedarf = finanzbedarf;
 
-      darlehenNodes.forEach(d => {
+      darlehenMitReihenfolge.forEach(({ element: d }) => {
         const name = d.children[1].value;
         const betrag = parseCurrency(d.children[2].value);
         const zinssatz = parseFloat(d.children[3].value) / 100;
         const laufzeit = parseFloat(d.children[4].value);
 
-        if (restbedarf <= 0 || !betrag || !laufzeit) return;
+        if (restbedarf <= 0 || !betrag || !laufzeit || zinssatz < 0) return;
 
         const realbetrag = Math.min(betrag, restbedarf);
         restbedarf -= realbetrag;
-        const rate = zinssatz > 0 ? (realbetrag * zinssatz) / 12 : realbetrag / (laufzeit * 12);
+
+        const rate = zinssatz > 0
+          ? (realbetrag * zinssatz / 12) / (1 - Math.pow(1 + zinssatz / 12, -laufzeit * 12))
+          : realbetrag / (laufzeit * 12);
 
         aufgenommene_darlehen.push({ name, realbetrag, rate });
         gesamt_rate += rate;
